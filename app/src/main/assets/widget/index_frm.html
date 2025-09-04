@@ -264,15 +264,15 @@
             });
 		}
 
-
 		// moduleUHF_ZHXX_2025模块的读操作，直接读标签的文本信息
 		function readUHF_ZHXX_2025(){
-            // 获取值类型的radio设置的值
-            var dataType = $('input[name="radioNFCZhxx"]:checked').val();
+			// 获取值类型的radio设置的值
+			var dataType = $('input[name="radioNFCZhxx"]:checked').val();
 
-            var params = {
-                dataType: dataType,
-            };
+			var params = {
+				dataType: dataType,
+				// timeout: 10000, // 可选参数，单位ms，表示读标签的超时时间，默认5000ms
+			};
 			moduleUHF_ZHXX_2025.readUHF(params, function(ret, err){
 				if (ret) {
 					console.log("读取完成！" + JSON.stringify(ret));
@@ -299,7 +299,74 @@
 				}
 			});
 		}
-		// moduleUHF_ZHXX_2025模块的写操作，直接写标签的文本信息
+
+		// moduleUHF_ZHXX_2025模块的读操作-连续读十秒，直接读标签的文本信息
+		// 废弃-这种方式不成功，最终通过模块内部循环读取实现
+		/*function readUHF_ZHXX_2025_long(){
+            // 获取值类型的radio设置的值
+            var dataType = $('input[name="radioNFCZhxx"]:checked').val();
+
+            var params = {
+                dataType: dataType,
+            };
+			
+			// 记录开始时间
+			var startTime = new Date().getTime();
+			// 标记是否读取成功
+			var readSuccess = false;
+			
+			// 定义读取函数
+			function doRead() {
+				moduleUHF_ZHXX_2025.readUHF(params, function(ret, err){
+					if (ret) {
+						console.log("读取完成！" + JSON.stringify(ret));
+						if (ret.flag == "yes") {
+							readSuccess = true;
+							api.toast({
+								msg: "读取成功：" + JSON.stringify(ret),
+								duration: 3000,
+								location: 'middle'
+							});
+							$("#nfc_2025_text").val(ret.info);
+						} else {
+							// 检查是否超时（10秒）
+							var currentTime = new Date().getTime();
+							if (currentTime - startTime < 10000) {
+								// 未超时，继续读取
+								setTimeout(doRead, 100); // 100ms后再次尝试
+							} else {
+								// 已超时，提示最终失败信息
+								api.toast({
+									msg: "读取失败！" + JSON.stringify(ret),
+									duration: 3000,
+									location: 'middle'
+								});
+							}
+							$("#nfc_2025_text").val(ret.info);
+						}
+					} else {
+						// 检查是否超时（10秒）
+						var currentTime = new Date().getTime();
+						if (currentTime - startTime < 10000) {
+							// 未超时，继续读取
+							setTimeout(doRead, 100); // 100ms后再次尝试
+						} else {
+							// 已超时，提示最终失败信息
+							api.toast({
+								msg: "读取失败！" + JSON.stringify(err),
+								duration: 3000,
+								location: 'middle'
+							});
+						}
+					}
+				});
+			}
+			
+			// 开始读取
+			doRead();
+		}*/
+
+		// moduleUHF_ZHXX_2025模块的写操作，直接写标签的文本信息	-改造成持续写入10秒
 		function writeUHF_ZHXX_2025(){
 			let text = $("#nfc_2025_text").val();
             // 获取值类型的radio设置的值
@@ -309,7 +376,7 @@
 				str : text,
                 dataType: dataType,
 			};
-			moduleUHF_ZHXX_2025.writeUHF(params, function(ret, err){
+			/*moduleUHF_ZHXX_2025.writeUHF(params, function(ret, err){
 				if (ret) {
 					console.log("写入完成！" + JSON.stringify(ret));
 					if (ret.flag == "yes") {
@@ -320,7 +387,7 @@
 						});
 					} else {
 						api.toast({
-							msg: "读取失败！" + JSON.stringify(ret),
+							msg: "写入失败！" + JSON.stringify(ret),
 							duration: 3000,
 							location: 'middle'
 						});
@@ -332,7 +399,62 @@
 						location: 'middle'
 					});
 				}
-			});
+			});*/
+
+
+			// 改造成连续写入10秒
+			// 记录开始时间
+			var startTime = new Date().getTime();
+			// 标记是否读取成功
+			var readSuccess = false;
+
+			// 定义读取函数
+			function doWrite() {
+				moduleUHF_ZHXX_2025.writeUHF(params, function(ret, err){
+					if (ret) {
+						console.log("写入完成！" + JSON.stringify(ret));
+						if (ret.flag == "yes") {
+							readSuccess = true;
+							api.toast({
+								msg: "写入成功：" + JSON.stringify(ret),
+								duration: 3000,
+								location: 'middle'
+							});
+						} else {
+							// 检查是否超时（10秒）
+							var currentTime = new Date().getTime();
+							if (currentTime - startTime < 10000) {
+								// 未超时，继续读取
+								setTimeout(doWrite, 500); // 500ms后再次尝试
+							} else {
+								// 已超时，提示最终失败信息
+								api.toast({
+									msg: "写入失败！" + JSON.stringify(ret),
+									duration: 3000,
+									location: 'middle'
+								});
+							}
+						}
+					} else {
+						// 检查是否超时（10秒）
+						var currentTime = new Date().getTime();
+						if (currentTime - startTime < 10000) {
+							// 未超时，继续写入
+							setTimeout(doWrite, 500); // 500ms后再次尝试
+						} else {
+							// 已超时，提示最终失败信息
+							api.toast({
+								msg: "写入失败！" + JSON.stringify(err),
+								duration: 3000,
+								location: 'middle'
+							});
+						}
+					}
+				});
+			}
+
+			// 开始写入
+			doWrite();
 		}
 
         // moduleUHF_ZHXX_2025模块的读取序列号操作
@@ -727,7 +849,7 @@
 <body>
     <div id="wrap">
         <div id="main">
-			<div class='itemtitle'>NFC-2025-14443A-重汽项目</div>
+			<div class='itemtitle'>24、NFC-2025-14443A-重汽项目-后升级连续读写</div>
 			<div><input type="text" id="nfc_2025_text" placeholder="对NFC芯片进行读写的内容"/><div>
             <form> 值类型：
                 <input type="radio" name="radioNFCZhxx" value="0" checked> 16进制

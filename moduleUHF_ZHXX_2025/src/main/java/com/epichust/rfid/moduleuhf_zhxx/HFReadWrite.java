@@ -96,14 +96,15 @@ public class HFReadWrite
 
     /**
      * @MethodName: readBlock
-     * @Description: 读块：固定的读取1扇区2块里的内容，起始位从0开始。块内数据长度为16字节/32位
+     * @Description: 读块：固定的读取1扇区2块里的内容，起始位从0开始。块内数据长度为16字节/32位。后升级为连续的读十秒。
      * @param listener 读块结果回调
      * @param dataTypeP 数据类型，0为16进制，1为utf8
+     * @param timeout 超时时间，单位毫秒     - 超时没生效，与调用逻辑的处理有关。通过前端持续调用写入接口可实现连续写入的效果。
      * @Return void
      * @Author: yuanbao
      * @Date: 2025/7/14
      **/
-    public void readBlock(int dataTypeP, OnReadBlockListener listener){
+    public void readBlock(int dataTypeP, int timeout, OnReadBlockListener listener){
         dataType = dataTypeP;
         m_uartTemp = new StringBuffer(); // 清空缓存
         mCmd = (byte)0xA3;
@@ -112,20 +113,45 @@ public class HFReadWrite
         Log.w(TAG,"Sending Read Block cmd...\n");
         try {
             if ((mOutputStream != null)) {
-                mTBuffer[0] = 0x01; //01 08 A3 20 0A 01 00 7E
-                mTBuffer[1] = 0x08;
-                mTBuffer[2] = (byte)0xA3;
-                mTBuffer[3] = 0x20;
-                mTBuffer[4] = 0x06; // 块号06（扇区1块2）
-                mTBuffer[5] = 0x01;
-                mTBuffer[6] = 0x00;
-                CheckSum(mTBuffer,(byte)8);
-                //				mTBuffer[7] = 0x7E;
-
-                writeSerial(mTBuffer);
-                Log.w(TAG, "Send completion!\n");
-                // 新增：启动超时处理
-                handler.postDelayed(timeoutRunnable, 3000);
+                // 定义持续读取任务
+                Runnable continuousReadRunnable = new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            mTBuffer[0] = 0x01; //01 08 A3 20 0A 01 00 7E
+                            mTBuffer[1] = 0x08;
+                            mTBuffer[2] = (byte)0xA3;
+                            mTBuffer[3] = 0x20;
+                            mTBuffer[4] = 0x06; // 块号06（扇区1块2）
+                            mTBuffer[5] = 0x01;
+                            mTBuffer[6] = 0x00;
+                            CheckSum(mTBuffer,(byte)8);
+                            // 发送读取命令
+                            writeSerial(mTBuffer);
+                            Log.w(TAG, "Send completion!\n");
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                };
+                
+                // 立即执行一次读取
+                continuousReadRunnable.run();
+                
+                // 每隔一定时间重复读取，持续10秒
+                handler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mReadBlockListener != null) {
+                            // 每500ms发送一次读取命令
+                            handler.post(continuousReadRunnable);
+                            handler.postDelayed(this, 500);
+                        }
+                    }
+                }, 500);
+                
+                // 10秒后超时处理
+                handler.postDelayed(timeoutRunnable, timeout);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -147,17 +173,17 @@ public class HFReadWrite
      * @Description: 写入数据
      * @param str 待写入的值
      * @param dataTypeP 数据类型，0为16进制，1为utf8
+     *  @param timeout 超时时间，单位毫秒
      * @param listener 写块结果回调
      * @Return void
      * @Author: yuanbao
      * @Date: 2025/7/14
      **/
-    public void writeData(String str, int dataTypeP, OnWriteBlockListener listener){
+    public void writeData(String str, int dataTypeP, int timeout, OnWriteBlockListener listener){
         dataType = dataTypeP;
         m_uartTemp = new StringBuffer(); // 清空缓存
         mCmd = (byte)0xA4;
         mWriteBlockListener = listener;
-
 
         try {
             byte[] mBlockData = new byte[16];
@@ -199,20 +225,48 @@ public class HFReadWrite
                 mStrData += '0';
             }
             mBlockData = Tools.HexString2Bytes(mStrData) ;//ByteUtil.hexStrToByte(mStrData);
-            mTBuffer[0] = 0x01;
-            mTBuffer[1] = 0x17;
-            mTBuffer[2] = (byte)0xA4;
-            mTBuffer[3] = 0x20;
-            mTBuffer[4] = 0x06; // 块号06（扇区1块2）
-            mTBuffer[5] = 0x01;
-            for(int i=0;i<16;i++)
-            {
-                mTBuffer[6 + i] = mBlockData[i];
-            }
-            CheckSum(mTBuffer,(byte)23);
-            writeSerial(mTBuffer);
-            // 新增：启动写入超时处理
-            handler.postDelayed(timeoutWriteRunnable, 3000);
+            
+            // 定义持续写入任务
+            byte[] finalMBlockData = mBlockData;
+            Runnable continuousWriteRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        mTBuffer[0] = 0x01;
+                        mTBuffer[1] = 0x17;
+                        mTBuffer[2] = (byte)0xA4;
+                        mTBuffer[3] = 0x20;
+                        mTBuffer[4] = 0x06; // 块号06（扇区1块2）
+                        mTBuffer[5] = 0x01;
+                        for(int i=0;i<16;i++)
+                        {
+                            mTBuffer[6 + i] = finalMBlockData[i];
+                        }
+                        CheckSum(mTBuffer,(byte)23);
+                        writeSerial(mTBuffer);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            };
+            
+            // 立即执行一次写入
+            continuousWriteRunnable.run();
+            
+            // 每隔一定时间重复写入，持续10秒
+            handler.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (mWriteBlockListener != null) {
+                        // 每500ms发送一次写入命令
+                        handler.post(continuousWriteRunnable);
+                        handler.postDelayed(this, 500);
+                    }
+                }
+            }, 500);
+            
+            // 10秒后超时处理
+            handler.postDelayed(timeoutWriteRunnable, timeout);
         } catch (Exception e) {
             e.printStackTrace();
             DevBeep.PlayErr();

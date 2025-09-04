@@ -90,7 +90,10 @@ public class HFDemo extends UZModule
 
         // 前端传参值类型：UTF8或16进制
         String dataTypeStr = moduleContext.optString("dataType");
+        // 超时时间-毫秒单位
+        String timeoutStr = moduleContext.optString("timeout");
         int dataType = dataTypeStr == "" ? 0 : Integer.parseInt(dataTypeStr); // 默认数据类型0为16进制，1为utf8
+        int timeout = timeoutStr == "" ? 5000 : Integer.parseInt(timeoutStr); // 默认超时时间5000ms
 
         Log.w("readUHF","-------读取初始化1");
         HFReadWrite uhf = new HFReadWrite();
@@ -98,7 +101,7 @@ public class HFDemo extends UZModule
         Log.w("readUHF","-------读取初始化2");
 
         // 异步回调方式
-        uhf.readBlock(dataType, new HFReadWrite.OnReadBlockListener() {
+        uhf.readBlock(dataType, timeout, new HFReadWrite.OnReadBlockListener() {
             @Override
             public void onReadBlockResult(Map<String, String> map) {
                 String flag = map.get("flag");
@@ -133,7 +136,10 @@ public class HFDemo extends UZModule
         String str = moduleContext.optString("str");
         // 前端传参值类型：UTF8或16进制
         String dataTypeStr = moduleContext.optString("dataType");
+        // 超时时间-毫秒单位
+        String timeoutStr = moduleContext.optString("timeout");
         int dataType = dataTypeStr == "" ? 0 : Integer.parseInt(dataTypeStr); // 默认数据类型0为16进制，1为utf8
+        int timeout = timeoutStr == "" ? 5000 : Integer.parseInt(timeoutStr); // 默认超时时间5000ms
 
         Log.w("writeUHF","-------写入初始化1");
         HFReadWrite uhf = new HFReadWrite();
@@ -141,7 +147,7 @@ public class HFDemo extends UZModule
         Log.w("writeUHF","-------写入初始化2");
 
         // 异步回调方式
-        uhf.writeData(str, dataType, new HFReadWrite.OnWriteBlockListener() {
+        uhf.writeData(str, dataType, timeout, new HFReadWrite.OnWriteBlockListener() {
             @Override
             public void onWriteBlockResult(Map<String, String> map) {
                 String flag = map.get("flag");
